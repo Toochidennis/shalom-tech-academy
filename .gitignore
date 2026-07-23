@@ -141,3 +141,14 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Project runtime
+data/sessions/*
+!data/sessions/.gitkeep
+uploads/news/*
+!uploads/news/.gitkeep
+
+# Local source/scrape artifacts
+scraped/
+shalomprimaryflyer.jpeg
+public/brand/original/
