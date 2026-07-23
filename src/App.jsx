@@ -38,6 +38,7 @@ function hrefFor(path) {
 function navigate(path) {
   window.history.pushState({}, '', hrefFor(path));
   window.dispatchEvent(new PopStateEvent('popstate'));
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
 }
 
 function Link({ to, className = '', children, onClick }) {
@@ -66,7 +67,7 @@ const pageDescriptions = {
   '/contact': `Contact ${site.name} at ${site.address}. Phone: ${site.phones.join(' or ')}.`,
 };
 
-function setMeta(title, description, path = window.location.pathname, image = site.primaryStem) {
+function setMeta(title, description, path = window.location.pathname, image = site.ogImage) {
   document.title = title;
   const url = new URL(path, `https://${site.website}/`).href;
   const entries = [
@@ -169,7 +170,7 @@ function Shell({ children, path }) {
 
 function Home() {
   useEffect(() => {
-    setMeta(`${site.name} | Nursery & Primary School in Enugu`, pageDescriptions['/'], '/', site.primaryStem);
+    setMeta(`${site.name} | Nursery & Primary School in Enugu`, pageDescriptions['/'], '/', site.ogImage);
   }, []);
 
   return (

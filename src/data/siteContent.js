@@ -18,7 +18,7 @@ export const site = {
   pupils: 'brand/optimized/pupils.webp',
   campus: 'brand/optimized/campus-from-flyer.webp',
   earlyYears: 'brand/optimized/early-years.webp',
-  primaryStem: 'brand/optimized/primary-stem.webp',
+    ogImage: 'brand/optimized/og-preview.webp',
   libraryReading: 'brand/optimized/library-reading.webp',
   sportsPlay: 'brand/optimized/sports-play.webp',
   creativeArts: 'brand/optimized/creative-arts.webp',
