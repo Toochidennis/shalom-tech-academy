@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
   BookOpen,
@@ -74,15 +74,72 @@ function Eyebrow({ children }) {
   return <p className="eyebrow"><span />{children}</p>;
 }
 
+const MARQUEE_SPEED = 72;
+
+function AnnouncementBar() {
+  const barRef = useRef(null);
+  const textRef = useRef(null);
+  const [duration, setDuration] = useState(22);
+
+  // The line travels the full width of the bar plus its own width, so hold the
+  // speed steady rather than the duration: a wide screen takes proportionally
+  // longer instead of whipping the text across.
+  useEffect(() => {
+    const measure = () => {
+      const bar = barRef.current?.offsetWidth;
+      const text = textRef.current?.offsetWidth;
+      if (!bar || !text) return;
+      setDuration((bar + text) / MARQUEE_SPEED);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
+  return (
+    <div className="announcement-bar" ref={barRef}>
+      <p className="marquee-item" ref={textRef} style={{ animationDuration: duration + 's' }}>
+        <Sparkles size={14} /> {site.admissionSession} admissions are open for Nursery &amp; Primary.
+      </p>
+    </div>
+  );
+}
+
 function Header({ path }) {
   const [open, setOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const headerRef = useRef(null);
+  const sentinelRef = useRef(null);
+
+  useEffect(() => {
+    const node = headerRef.current;
+    if (!node) return undefined;
+    const measure = () => setHeaderHeight(node.offsetHeight);
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
+  // The sentinel sits directly below the header, so it leaves the viewport at
+  // the exact moment the header has scrolled away. The spacer then takes the
+  // header's place in the flow, which keeps the sentinel still and stops the
+  // observer oscillating.
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || typeof IntersectionObserver === 'undefined') return undefined;
+    const observer = new IntersectionObserver(
+      ([entry]) => setPinned(!entry.isIntersecting && entry.boundingClientRect.top <= 0),
+      { threshold: 0 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <>
-      <div className="announcement-bar">
-        <span><Sparkles size={14} /> {site.admissionSession} admissions are open for Nursery &amp; Primary.</span>
-        <a href={'tel:' + site.phones[0].replace(/\D/g, '')}>Talk to admissions <ArrowRight size={14} /></a>
-      </div>
-      <header className="site-header">
+      <AnnouncementBar />
+      <header ref={headerRef} className={pinned ? 'site-header is-pinned' : 'site-header'}>
         <Link to="/" className="brand" onClick={() => setOpen(false)}>
           <img src={site.logo} alt="SSTBAC crest" />
           <span><strong>{site.shortName}</strong><small>Science &amp; Technology Basic Academy</small></span>
@@ -95,6 +152,8 @@ function Header({ path }) {
           <Link to="/admissions" className="nav-cta" onClick={() => setOpen(false)}>Enquire now <ArrowRight size={15} /></Link>
         </nav>
       </header>
+      <div className="header-spacer" style={{ height: pinned ? headerHeight : 0 }} aria-hidden="true" />
+      <div className="header-sentinel" ref={sentinelRef} aria-hidden="true" />
     </>
   );
 }
@@ -108,7 +167,7 @@ function Footer() {
         <Link to="/admissions" className="button button-light">Start an enquiry <ArrowRight size={17} /></Link>
       </div>
       <div className="footer-grid">
-        <div><span className="footer-label">Explore</span>{navItems.slice(1).map((item) => <Link key={item.path} to={item.path}>{item.label}</Link>)}</div>
+        <div className="footer-explore"><span className="footer-label">Explore</span>{navItems.slice(1).map((item) => <Link key={item.path} to={item.path}>{item.label}</Link>)}</div>
         <div><span className="footer-label">Visit or call</span><p><MapPin size={17} />{site.address}</p><a href={'tel:' + site.phones[0].replace(/\D/g, '')}><Phone size={17} />{site.phones[0]}</a><a href={'mailto:' + site.email}><Mail size={17} />{site.email}</a></div>
         <div className="footer-values"><span className="footer-label">Our foundation</span><strong>Faith.<br />Curiosity.<br />Confidence.</strong></div>
       </div>
@@ -135,7 +194,7 @@ function AdmissionBanner() {
 
 function CampusGrid({ limit }) {
   const stories = limit ? campusStories.slice(0, limit) : campusStories;
-  return <div className="campus-grid">{stories.map((story) => <article className={'campus-card campus-card-' + story.size} key={story.title}><img src={story.image} alt={story.title} /><div><span>Campus life</span><h3>{story.title}</h3><p>{story.text}</p></div></article>)}</div>;
+  return <div className={limit ? 'campus-grid campus-grid-preview' : 'campus-grid'}>{stories.map((story) => <article className={'campus-card campus-card-' + story.size} key={story.title}><img src={story.image} alt={story.title} /><div><span>Campus life</span><h3>{story.title}</h3><p>{story.text}</p></div></article>)}</div>;
 }
 
 function Home() {

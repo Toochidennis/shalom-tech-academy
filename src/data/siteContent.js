@@ -86,13 +86,19 @@ export const campusStories = [
     title: 'Learning in every corner',
     text: 'Numbers, days of the week and creative visuals turn everyday spaces into learning prompts.',
     image: site.corridorImage,
-    size: 'wide',
+    size: 'feature',
   },
   {
     title: 'Science meets imagination',
     text: 'Our visual culture celebrates creativity, invention and the joy of discovering new ideas.',
     image: site.innovationMural,
     size: 'standard',
+  },
+  {
+    title: 'Structure with warmth',
+    text: 'Clear routines and cheerful spaces support independence, attention and belonging.',
+    image: site.learningCorridor,
+    size: 'tall',
   },
   {
     title: 'A welcoming school home',
@@ -105,12 +111,6 @@ export const campusStories = [
     text: 'Colourful campus art makes the school’s identity visible from the very first visit.',
     image: site.galleryWall,
     size: 'wide',
-  },
-  {
-    title: 'Structure with warmth',
-    text: 'Clear routines and cheerful spaces support independence, attention and belonging.',
-    image: site.learningCorridor,
-    size: 'tall',
   },
 ];
 

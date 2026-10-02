@@ -9,5 +9,10 @@ Options -Indexes
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
+  # Assets are referenced relatively, so /about/ would resolve them against
+  # /about/ and 404. Send trailing-slash routes to their canonical form.
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^(.+)/$ /$1 [R=301,L]
+
   RewriteRule ^ index.html [L]
 </IfModule>

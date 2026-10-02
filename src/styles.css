@@ -32,20 +32,58 @@ img { display: block; max-width: 100%; }
 
 .announcement-bar {
   min-height: 38px;
-  padding: 7px max(24px, calc((100vw - 1240px) / 2));
+  position: relative;
   display: flex;
-  gap: 22px;
   align-items: center;
-  justify-content: space-between;
+  overflow: hidden;
   background: var(--sun);
   color: var(--forest-deep);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: .015em;
 }
-.announcement-bar span,
-.announcement-bar a { display: inline-flex; align-items: center; gap: 7px; }
-.announcement-bar a { text-decoration: underline; text-underline-offset: 3px; }
+/* One pass, left to right: the line starts a full text-width to the left of the
+   screen and finishes a full bar-width to the right of it, so it emerges from
+   one edge and disappears off the other. */
+.marquee-item {
+  margin: 0;
+  position: absolute;
+  left: 0;
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  white-space: nowrap;
+  animation: marquee-slide linear infinite;
+  will-change: transform;
+}
+.announcement-bar:hover .marquee-item { animation-play-state: paused; }
+@keyframes marquee-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100vw); }
+}
+
+.header-sentinel { height: 1px; }
+.site-header.is-pinned {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 60;
+  background: rgba(255, 253, 248, .88);
+  box-shadow: 0 10px 30px rgba(7, 43, 30, .10);
+  animation: header-drop .42s cubic-bezier(.22, .61, .36, 1);
+  backdrop-filter: blur(12px);
+}
+@keyframes header-drop {
+  from { opacity: 0; transform: translateY(-100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-item { position: static; padding: 0 24px; animation: none; }
+  .site-header.is-pinned { animation: none; }
+  html { scroll-behavior: auto; }
+}
 
 .site-header {
   min-height: 85px;
@@ -342,14 +380,12 @@ h1, h2, h3, p { margin-top: 0; }
   position: relative;
 }
 .welcome-section figure::before {
-  width: 83%;
-  height: 91%;
   position: absolute;
-  top: -22px;
-  left: -22px;
-  border: 1px solid var(--coral);
-  border-radius: 60% 40% 34% 28%;
+  inset: -10px;
+  background: var(--sage);
+  border-radius: 57% 43% 27% 42%;
   content: '';
+  transform: translate(-10px, -12px);
 }
 .welcome-section img {
   width: 100%;
@@ -460,10 +496,12 @@ h1, h2, h3, p { margin-top: 0; }
 
 .campus-grid {
   display: grid;
+  grid-auto-flow: dense;
   grid-template-columns: repeat(4, 1fr);
   grid-auto-rows: 170px;
   gap: 16px;
 }
+.campus-grid-preview > .campus-card { grid-column: span 1; grid-row: span 2; }
 .campus-card {
   min-height: 170px;
   position: relative;
@@ -474,6 +512,7 @@ h1, h2, h3, p { margin-top: 0; }
 .campus-card-standard { grid-column: span 1; grid-row: span 2; }
 .campus-card-tall { grid-column: span 1; grid-row: span 3; }
 .campus-card-wide { grid-column: span 2; grid-row: span 2; }
+.campus-card-feature { grid-column: span 2; grid-row: span 3; }
 .campus-card img { width: 100%; height: 100%; object-fit: cover; transition: transform .45s ease; }
 .campus-card::after {
   position: absolute;
@@ -489,11 +528,8 @@ h1, h2, h3, p { margin-top: 0; }
   left: 0;
   z-index: 1;
   color: white;
-  transform: translateY(47px);
-  transition: transform .35s ease;
 }
-.campus-card:hover img { transform: scale(1.05); }
-.campus-card:hover > div { transform: translateY(0); }
+.campus-card:hover img { transform: scale(1.08); }
 .campus-card span { color: var(--lime); font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .campus-card h3 { margin: 5px 0 8px; font-family: 'Playfair Display', Georgia, serif; font-size: 20px; letter-spacing: -.035em; line-height: 1.15; }
 .campus-card p { margin: 0; color: #e2f0e8; font-size: 11px; line-height: 1.55; }
@@ -824,8 +860,7 @@ h1, h2, h3, p { margin-top: 0; }
 }
 
 @media (max-width: 720px) {
-  .announcement-bar { min-height: 36px; padding: 8px 18px; font-size: 10px; }
-  .announcement-bar a { display: none; }
+  .announcement-bar { min-height: 36px; font-size: 10px; }
   .site-header { padding: 9px 18px; }
   .brand img { width: 50px; height: 50px; }
   .brand strong { font-size: 17px; }
@@ -855,7 +890,8 @@ h1, h2, h3, p { margin-top: 0; }
   .campus-card-standard { grid-column: span 1; grid-row: span 2; }
   .campus-card-tall { grid-column: span 1; grid-row: span 3; }
   .campus-card-wide { grid-column: span 2; grid-row: span 2; }
-  .campus-card > div { padding: 14px; transform: translateY(0); }
+  .campus-card-feature { grid-column: span 2; grid-row: span 2; }
+  .campus-card > div { padding: 14px; }
   .campus-card p { display: none; }
   .campus-card h3 { margin-bottom: 0; font-size: 17px; }
   .admissions-banner { margin: 0 22px 76px; padding: 38px 28px; display: block; border-radius: 17px; }
@@ -885,6 +921,8 @@ h1, h2, h3, p { margin-top: 0; }
   .footer-top { padding: 36px 22px; display: block; }
   .footer-top .button { margin-top: 25px; }
   .footer-grid { padding: 35px 22px; grid-template-columns: 1fr; gap: 34px; }
+  .footer-explore { grid-template-columns: 1fr 1fr; column-gap: 20px; }
+  .footer-explore .footer-label { grid-column: 1 / -1; }
   .footer-bottom { padding: 16px 22px 21px; display: block; }
   .footer-bottom span + span { display: block; margin-top: 7px; }
 }
