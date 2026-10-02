@@ -1,38 +1,42 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, BookOpen, Building2, CalendarDays, CheckCircle2, GraduationCap, Mail, MapPin, Menu, Megaphone, Phone, ShieldCheck, Sparkles, Users, X } from 'lucide-react';
-import { getCurrentAdmin, login, logout } from './api/auth';
-import { deleteNews, getAdminNews, getAdminNewsById, getNewsBySlug, getPublicNews, saveNews, togglePublish, uploadNewsImage } from './api/newsService';
-import { aboutStats, admissionSteps, categories, imageOptions, learningNotes, navItems, pillars, schoolHighlights, schoolLife, secondarySchoolFacts, site, values, visionMission } from './data/siteContent';
+import { useEffect, useState } from 'react';
+import {
+  ArrowRight,
+  BookOpen,
+  CalendarDays,
+  Check,
+  ChevronRight,
+  Heart,
+  Mail,
+  MapPin,
+  Menu,
+  Microscope,
+  Palette,
+  Phone,
+  School,
+  ShieldCheck,
+  Sparkles,
+  X,
+} from 'lucide-react';
+import { admissionSteps, campusStories, learningStages, navItems, site, trustPoints, values } from './data/siteContent';
 
-const knownRoutes = [
-  '/admin_news_form',
-  '/admin_news',
-  '/admin_login',
-  '/news_detail',
-  '/admissions',
-  '/academics',
-  '/gallery',
-  '/contact',
-  '/about',
-  '/news',
+const routes = ['/', '/about', '/academics', '/gallery', '/admissions', '/news', '/contact'];
+
+const newsItems = [
+  ['Admissions', site.admissionSession + ' admission is open', 'Speak with the school office about current class placement and the admissions process.', site.heroImage],
+  ['Campus life', 'A school environment made for young learners', 'Our colourful learning spaces help children feel welcome, curious and ready to grow.', site.learningMural],
+  ['Learning', 'Small beginnings. Big possibilities.', 'A strong early foundation is built through daily routines, thoughtful teaching and joyful discovery.', site.innovationMural],
 ];
 
 function getRouteState() {
   const pathname = window.location.pathname.replace(/\/$/, '') || '/';
-  for (const route of knownRoutes) {
-    if (pathname === route || pathname.endsWith(route)) {
-      const prefix = pathname.slice(0, -route.length);
-      return { path: route, prefix };
-    }
-  }
-  return { path: '/', prefix: pathname === '/' ? '' : pathname };
+  const path = routes.find((route) => route !== '/' && (pathname === route || pathname.endsWith(route)));
+  return path ? { path, prefix: pathname.slice(0, -path.length) } : { path: '/', prefix: pathname === '/' ? '' : pathname };
 }
 
 let routePrefix = getRouteState().prefix;
 
 function hrefFor(path) {
-  const normalized = path === '/' ? '' : path;
-  return `${routePrefix}${normalized || '/'}`;
+  return routePrefix + (path === '/' ? '/' : path);
 }
 
 function navigate(path) {
@@ -42,862 +46,178 @@ function navigate(path) {
 }
 
 function Link({ to, className = '', children, onClick }) {
-  return (
-      <a
-      href={hrefFor(to)}
-      className={className}
-      onClick={(event) => {
-        event.preventDefault();
-        onClick?.();
-        navigate(to);
-      }}
-    >
-      {children}
-    </a>
-  );
+  return <a href={hrefFor(to)} className={className} onClick={(event) => { event.preventDefault(); onClick?.(); navigate(to); }}>{children}</a>;
 }
 
-const pageDescriptions = {
-  '/': `${site.admissionSession} Nursery and Primary admission is open at ${site.name}, ${site.address}.`,
-  '/about': `Learn about ${site.name}, a Nursery and Primary basic academy using the Shalom science and technology identity.`,
-  '/academics': `${site.name} focuses on strong academics, STEM and innovation, character, creativity, and a safe learning environment.`,
-  '/gallery': `View school-life sections for ${site.name}: early years, STEM, reading, sports, creativity, and daily routines.`,
-  '/admissions': `${site.admissionSession} admission details for Nursery and Primary at ${site.name}. Call ${site.phones.join(' or ')}.`,
-  '/news': `Published news and school announcements from ${site.name}.`,
-  '/contact': `Contact ${site.name} at ${site.address}. Phone: ${site.phones.join(' or ')}.`,
-};
+function usePageTitle(title, description, image = site.ogImage) {
+  useEffect(() => {
+    document.title = title;
+    const entries = [
+      ['name', 'description', description],
+      ['property', 'og:title', title],
+      ['property', 'og:description', description],
+      ['property', 'og:image', 'https://' + site.website + '/' + image],
+    ];
+    entries.forEach(([attribute, name, value]) => {
+      let tag = document.querySelector('meta[' + attribute + '="' + name + '"]');
+      if (!tag) {
+        tag = document.createElement('meta');
+        tag.setAttribute(attribute, name);
+        document.head.appendChild(tag);
+      }
+      tag.setAttribute('content', value);
+    });
+  }, [title, description, image]);
+}
 
-function setMeta(title, description, path = window.location.pathname, image = site.ogImage) {
-  document.title = title;
-  const url = new URL(path, `https://${site.website}/`).href;
-  const entries = [
-    ['name', 'description', description],
-    ['property', 'og:title', title],
-    ['property', 'og:description', description],
-    ['property', 'og:url', url],
-    ['property', 'og:image', new URL(image, `https://${site.website}/`).href],
-    ['name', 'twitter:title', title],
-    ['name', 'twitter:description', description],
-    ['name', 'twitter:image', new URL(image, `https://${site.website}/`).href],
-  ];
-
-  for (const [attr, key, value] of entries) {
-    let node = document.querySelector(`meta[${attr}="${key}"]`);
-    if (!node) {
-      node = document.createElement('meta');
-      node.setAttribute(attr, key);
-      document.head.appendChild(node);
-    }
-    node.setAttribute('content', value);
-  }
-
-  let canonical = document.querySelector('link[rel="canonical"]');
-  if (!canonical) {
-    canonical = document.createElement('link');
-    canonical.setAttribute('rel', 'canonical');
-    document.head.appendChild(canonical);
-  }
-  canonical.setAttribute('href', url);
+function Eyebrow({ children }) {
+  return <p className="eyebrow"><span />{children}</p>;
 }
 
 function Header({ path }) {
   const [open, setOpen] = useState(false);
   return (
-    <header className="site-header">
-      <Link to="/" className="brand-lockup" onClick={() => setOpen(false)}>
-        <img src={site.logo} alt="Shalom Science and Technology Academy logo" />
-        <span>
-          <strong>{site.name}</strong>
-          <small>{site.motto}</small>
-        </span>
-      </Link>
-      <button className="icon-button nav-toggle" type="button" aria-label="Open navigation" onClick={() => setOpen(!open)}>
-        {open ? <X size={20} /> : <Menu size={20} />}
-      </button>
-      <nav className={open ? 'nav-links open' : 'nav-links'} aria-label="Main navigation">
-        {navItems.map((item) => (
-          <Link key={item.path} to={item.path} className={path === item.path ? 'active' : ''} onClick={() => setOpen(false)}>
-            {item.label}
-          </Link>
-        ))}
-      </nav>
-    </header>
+    <>
+      <div className="announcement-bar">
+        <span><Sparkles size={14} /> {site.admissionSession} admissions are open for Nursery &amp; Primary.</span>
+        <a href={'tel:' + site.phones[0].replace(/\D/g, '')}>Talk to admissions <ArrowRight size={14} /></a>
+      </div>
+      <header className="site-header">
+        <Link to="/" className="brand" onClick={() => setOpen(false)}>
+          <img src={site.logo} alt="SSTBAC crest" />
+          <span><strong>{site.shortName}</strong><small>Science &amp; Technology Basic Academy</small></span>
+        </Link>
+        <button className="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? <X size={23} /> : <Menu size={23} />}
+        </button>
+        <nav className={open ? 'nav-links is-open' : 'nav-links'}>
+          {navItems.map((item) => <Link key={item.path} to={item.path} className={path === item.path ? 'active' : ''} onClick={() => setOpen(false)}>{item.label}</Link>)}
+          <Link to="/admissions" className="nav-cta" onClick={() => setOpen(false)}>Enquire now <ArrowRight size={15} /></Link>
+        </nav>
+      </header>
+    </>
   );
 }
 
 function Footer() {
   return (
-    <footer className="footer">
-      <div className="footer-brand">
-        <img src={site.logo} alt="Shalom Science and Technology Academy logo" />
-        <div>
-          <p>{site.name}</p>
-          <span>{site.motto}</span>
-        </div>
+    <footer className="site-footer">
+      <div className="footer-top">
+        <div className="footer-brand"><img src={site.logo} alt="" /><div><strong>{site.name}</strong><span>{site.motto}</span></div></div>
+        <p>A warm, purposeful beginning for every child who walks through our gates.</p>
+        <Link to="/admissions" className="button button-light">Start an enquiry <ArrowRight size={17} /></Link>
       </div>
-      <div className="footer-contact">
-        <h2>Contact</h2>
-        <p><MapPin size={18} />{site.address}</p>
-        <p><Phone size={18} />{site.phones.join(' / ')}</p>
-        <p><Mail size={18} />{site.email}</p>
+      <div className="footer-grid">
+        <div><span className="footer-label">Explore</span>{navItems.slice(1).map((item) => <Link key={item.path} to={item.path}>{item.label}</Link>)}</div>
+        <div><span className="footer-label">Visit or call</span><p><MapPin size={17} />{site.address}</p><a href={'tel:' + site.phones[0].replace(/\D/g, '')}><Phone size={17} />{site.phones[0]}</a><a href={'mailto:' + site.email}><Mail size={17} />{site.email}</a></div>
+        <div className="footer-values"><span className="footer-label">Our foundation</span><strong>Faith.<br />Curiosity.<br />Confidence.</strong></div>
       </div>
-      <div className="footer-links">
-        <h2>Pages</h2>
-        <Link to="/about">About</Link>
-        <Link to="/academics">Academics</Link>
-        <Link to="/gallery">Gallery</Link>
-        <Link to="/admissions">Admissions</Link>
-        <Link to="/news">News</Link>
-        <Link to="/contact">Contact</Link>
-      </div>
-      <div className="footer-bottom">
-        <span>Faith · Excellence · Innovation · Leadership</span>
-        <span>{site.name}</span>
-      </div>
+      <div className="footer-bottom"><span>© {new Date().getFullYear()} {site.shortName}. All rights reserved.</span><span>{site.motto}</span></div>
     </footer>
   );
 }
 
 function Shell({ children, path }) {
-  return (
-    <>
-      <Header path={path} />
-      <main>{children}</main>
-      <Footer />
-    </>
-  );
+  return <div className="app-shell"><Header path={path} /><main>{children}</main><Footer /></div>;
+}
+
+function SectionHeading({ eyebrow, title, copy, action }) {
+  return <div className="section-heading"><div><Eyebrow>{eyebrow}</Eyebrow><h2>{title}</h2></div><div>{copy && <p>{copy}</p>}{action}</div></div>;
+}
+
+function PageHero({ eyebrow, title, copy, image, alt }) {
+  return <section className="page-hero"><div><Eyebrow>{eyebrow}</Eyebrow><h1>{title}</h1><p>{copy}</p></div><figure><img src={image} alt={alt} /></figure></section>;
+}
+
+function AdmissionBanner() {
+  return <section className="admissions-banner"><div><Eyebrow>Join SSTBAC</Eyebrow><h2>Your child’s bright beginning can start here.</h2></div><div><p>Speak with the school office about Nursery and Primary admissions for the {site.admissionSession} session.</p><Link to="/admissions" className="button button-primary">Start an enquiry <ArrowRight size={18} /></Link></div></section>;
+}
+
+function CampusGrid({ limit }) {
+  const stories = limit ? campusStories.slice(0, limit) : campusStories;
+  return <div className="campus-grid">{stories.map((story) => <article className={'campus-card campus-card-' + story.size} key={story.title}><img src={story.image} alt={story.title} /><div><span>Campus life</span><h3>{story.title}</h3><p>{story.text}</p></div></article>)}</div>;
 }
 
 function Home() {
-  useEffect(() => {
-    setMeta(`${site.name} | Nursery & Primary School in Enugu`, pageDescriptions['/'], '/', site.ogImage);
-  }, []);
-
+  usePageTitle(site.name + ' | Nursery & Primary School in Enugu', site.admissionSession + ' admissions for Nursery and Primary at ' + site.name + '.');
   return (
     <>
       <section className="hero">
         <div className="hero-copy">
-          <p className="eyebrow">Now open for {site.admissionSession} admission</p>
-          <h1>{site.name}</h1>
-          <p className="hero-promise">{site.promise}</p>
-          <p>Nursery and primary education shaped around strong academics, early STEM habits, character, creativity, and a secure school environment.</p>
-          <div className="hero-actions">
-            <Link to="/about" className="button primary">
-              Explore the school <ArrowRight size={18} />
-            </Link>
-            <Link to="/contact" className="button ghost">
-              Contact school
-            </Link>
-          </div>
+          <Eyebrow>{site.admissionSession} admissions open</Eyebrow>
+          <h1>A strong start for <em>bright</em> young minds.</h1>
+          <p>{site.name} is a warm, creative learning home where children build confidence, character and a lifelong love of discovery.</p>
+          <div className="hero-actions"><Link to="/admissions" className="button button-primary">Begin an enquiry <ArrowRight size={18} /></Link><Link to="/gallery" className="button button-quiet">Explore our campus <ChevronRight size={18} /></Link></div>
+          <div className="hero-note"><CalendarDays size={20} /><span><strong>{site.programmes}</strong><small>Now welcoming learners for the new session</small></span></div>
         </div>
-        <div className="uniform-panel">
-          <img src={site.pupils} alt="Pupils wearing the Shalom green, cream, and plaid uniform" />
-          <div className="session-badge">
-            <CalendarDays size={24} />
-            <span>{site.programmes}</span>
-            <strong>{site.admissionSession}</strong>
-          </div>
-        </div>
+        <div className="hero-visual"><div className="hero-arch"><img src={site.heroImage} alt="SSTBAC campus exterior" /></div><div className="hero-crest"><img src={site.logo} alt="" /></div><div className="hero-tag"><span>Our promise</span><strong>{site.motto}</strong></div></div>
       </section>
-
-      <section className="admission-strip">
-        <div>
-          <Megaphone size={28} />
-          <span>Limited spaces available</span>
-        </div>
-        <p>Enrol early and secure your child's future today.</p>
+      <section className="trust-strip"><p>Why families choose SSTBAC</p>{trustPoints.map((point) => <div key={point}><Check size={18} />{point}</div>)}</section>
+      <section className="section welcome-section">
+        <figure><img src={site.campusImage} alt="Front view of the SSTBAC school building" /><figcaption><School size={20} />Built for the foundation years</figcaption></figure>
+        <div><Eyebrow>Welcome to SSTBAC</Eyebrow><h2>Where a child’s first school years are treated as something special.</h2><p>We believe a child learns best when they feel safe to ask questions, make mistakes, express ideas and take pride in every new achievement.</p><p>Our approach brings together strong early academics, practical science and technology, creativity, discipline and values—all within a cheerful environment made for children.</p><Link to="/about" className="text-link">Discover our school <ArrowRight size={17} /></Link></div>
       </section>
-
-      <section className="section split">
-        <div>
-          <p className="eyebrow">Foundation years</p>
-          <h2>A basic academy for the years where confidence, habits, and curiosity are formed.</h2>
-          <p className="lead-copy">Great minds begin in a nurturing environment. The school’s work is presented through clear attention to academics, STEM, character, creativity, and safety.</p>
-        </div>
-        <div className="fact-grid">
-          {schoolHighlights.map((fact) => (
-            <article key={fact} className="fact-card">
-              <CheckCircle2 size={20} />
-              <p>{fact}</p>
-            </article>
-          ))}
-        </div>
+      <section className="section">
+        <SectionHeading eyebrow="How learning grows" title="Small steps. Big confidence." copy="A clear learning journey shaped for the way young children explore the world." />
+        <div className="stage-grid">{learningStages.map((stage, index) => { const icons = [BookOpen, School, Microscope]; const Icon = icons[index]; return <article className="stage-card" key={stage.title}><div><span>{stage.step}</span><Icon size={25} /></div><h3>{stage.title}</h3><p>{stage.text}</p><Link to="/academics" className="round-link" aria-label={'Learn about ' + stage.title}><ArrowRight size={18} /></Link></article>; })}</div>
       </section>
-
-      <LearningSection />
-      <Pillars />
-      <SchoolLifePreview />
-      <AdmissionsSummary />
+      <section className="feature-split"><div><Eyebrow>Every space can teach</Eyebrow><h2>Colour, creativity and curiosity live beyond the classroom.</h2><p>From murals that spark imagination to everyday number and language prompts, our campus is designed to keep learning visible, memorable and joyful.</p><Link to="/gallery" className="button button-light">See campus life <ArrowRight size={18} /></Link></div><figure><img className="feature-main" src={site.innovationMural} alt="Innovation themed learning mural" /><img className="feature-small" src={site.corridorImage} alt="Numbers learning mural" /></figure></section>
+      <section className="section"><SectionHeading eyebrow="Campus life" title="A school children are excited to come back to." copy="Take a look around the spaces that make the SSTBAC experience warm, colourful and full of possibility." action={<Link to="/gallery" className="text-link">View all moments <ArrowRight size={17} /></Link>} /><CampusGrid limit={4} /></section>
+      <section className="section values-section"><SectionHeading eyebrow="More than lessons" title="The values children carry with them." copy="What happens every day matters: how children are spoken to, encouraged and taught to treat one another." /><div className="value-grid">{values.map((value, index) => { const icons = [Sparkles, Heart, ShieldCheck]; const Icon = icons[index]; return <article key={value.title}><Icon size={28} /><h3>{value.title}</h3><p>{value.text}</p></article>; })}</div></section>
       <NewsPreview />
+      <AdmissionBanner />
     </>
-  );
-}
-
-function LearningSection() {
-  return (
-    <section className="section image-split">
-      <div className="image-stack">
-        <img src={site.primaryStem} alt="Pupils using age-appropriate STEM learning materials" />
-        <img src={site.libraryReading} alt="Pupils reading and drawing with a teacher" />
-      </div>
-      <div>
-        <p className="eyebrow">Learning approach</p>
-        <h2>Hands-on work before big words.</h2>
-        <div className="note-list">
-          {learningNotes.map((note) => (
-            <article key={note.title}>
-              <h3>{note.title}</h3>
-              <p>{note.text}</p>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function SchoolLifePreview() {
-  return (
-    <section className="section">
-      <div className="section-row">
-        <div>
-          <p className="eyebrow">School life</p>
-          <h2>More than an admission notice.</h2>
-        </div>
-        <Link to="/gallery" className="text-link">View gallery</Link>
-      </div>
-      <div className="life-grid compact">
-        {schoolLife.slice(0, 3).map((item) => (
-          <article className="life-card" key={item.title}>
-            <img src={item.image} alt={item.title} />
-            <div>
-              <h3>{item.title}</h3>
-              <p>{item.text}</p>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function AdmissionsSummary() {
-  return (
-    <section className="section admission-summary">
-      <div>
-        <p className="eyebrow">Admission</p>
-        <h2>{site.admissionSession} admission is open.</h2>
-        <p className="lead-copy">Admission is open into Nursery and Primary, with limited spaces available. The next step is to contact the school directly and confirm the current admission process.</p>
-      </div>
-      <ol>
-        {admissionSteps.map((step) => <li key={step}>{step}</li>)}
-      </ol>
-    </section>
-  );
-}
-
-function Pillars() {
-  const icons = [GraduationCap, Sparkles, Users, BookOpen, ShieldCheck];
-  return (
-    <section className="section">
-      <p className="eyebrow">Our promise</p>
-      <h2>Excellence, character, innovation.</h2>
-      <div className="pillar-grid">
-        {pillars.map((pillar, index) => {
-          const Icon = icons[index];
-          return (
-            <article className="pillar-card" key={pillar.title}>
-              <Icon size={28} />
-              <h3>{pillar.title}</h3>
-              <p>{pillar.text}</p>
-            </article>
-          );
-        })}
-      </div>
-    </section>
   );
 }
 
 function About() {
-  useEffect(() => {
-    setMeta(`About | ${site.name}`, pageDescriptions['/about'], '/about', site.schoolArrival);
-  }, []);
-
-  return (
-    <>
-      <section className="page-hero about-hero">
-        <div>
-          <p className="eyebrow">About</p>
-          <h1>A nursery and primary school built around foundations that last.</h1>
-          <p>{site.name} carries the Shalom science and technology identity into the early school years: strong academics, practical curiosity, character, creativity, and safety.</p>
-        </div>
-        <img src={site.schoolArrival} alt="Pupils arriving at school in the morning" />
-      </section>
-
-      <section className="section split">
-        <div>
-          <p className="eyebrow">Our story</p>
-          <h2>{site.promise}</h2>
-        </div>
-        <div className="copy-block">
-          <p>{site.name} is a basic academy for Nursery and Primary learners. The school’s public materials present it as a nurturing environment for curious minds and future leaders.</p>
-          <p>The academy promise is expressed through five visible commitments: strong academics, STEM and innovation, character and values, sports and creativity, and a safe and secure environment.</p>
-          <p>{secondarySchoolFacts.body}</p>
-        </div>
-      </section>
-
-      <section className="section stat-band">
-        {aboutStats.map((stat) => (
-          <div key={stat.label}>
-            <strong>{stat.value}</strong>
-            <span>{stat.label}</span>
-          </div>
-        ))}
-      </section>
-
-      <section className="section section-alt">
-        <div className="vision-grid">
-          {visionMission.map((item) => (
-            <article className="vision-card" key={item.title}>
-              <h3>{item.title}</h3>
-              <p>{item.text}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="section image-split reverse">
-        <div>
-          <p className="eyebrow">How children learn here</p>
-          <h2>Clear routines, practical work, and steady values.</h2>
-          <div className="note-list">
-            {learningNotes.map((note) => (
-              <article key={note.title}>
-                <h3>{note.title}</h3>
-                <p>{note.text}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-        <div className="image-stack">
-          <img src={site.earlyYears} alt="Children sorting shapes and counting in class" />
-          <img src={site.primaryStem} alt="Primary pupils working with STEM learning materials" />
-        </div>
-      </section>
-
-      <section className="section">
-        <p className="eyebrow">What guides us</p>
-        <h2>Faith, excellence, innovation, leadership.</h2>
-        <div className="values-grid">
-          {values.map((value) => (
-            <article className="value-card" key={value.title}>
-              <h3>{value.title}</h3>
-              <p>{value.text}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-    </>
-  );
+  usePageTitle('Our School | ' + site.name, 'Learn about the values and learning environment at ' + site.name + '.', site.campusImage);
+  return <><PageHero eyebrow="Our school" title="A school home for curious minds and growing character." copy="SSTBAC is shaped around a simple belief: children deserve a strong, joyful foundation that prepares them to learn with confidence." image={site.campusImage} alt="SSTBAC campus entrance" /><section className="section story-section"><div><Eyebrow>Our foundation</Eyebrow><h2>Strong beginnings are built with care.</h2></div><div><p>At Shalom Science &amp; Technology Basic Academy, we create a learning environment where children feel seen, supported and inspired to try. Our focus is not simply on getting through lessons; it is on helping children form the habits, confidence and imagination that make future learning possible.</p><p>We bring together early academics, practical exploration, creativity, faith and everyday character so each learner can grow at a pace that feels purposeful and encouraging.</p></div></section><section className="section values-showcase"><figure><img src={site.learningMural} alt="Learning themed mural at SSTBAC" /></figure><div><Eyebrow>What guides us</Eyebrow><h2>Faith, wonder and a belief in every child.</h2>{values.map((value) => <article className="check-value" key={value.title}><Check size={16} /><div><h3>{value.title}</h3><p>{value.text}</p></div></article>)}</div></section><AdmissionBanner /></>;
 }
 
 function Academics() {
-  useEffect(() => {
-    setMeta(`Academics | ${site.name}`, pageDescriptions['/academics'], '/academics', site.primaryStem);
-  }, []);
-
-  return (
-    <section className="section page">
-      <p className="eyebrow">Academics</p>
-      <h1>Nursery and primary learning with a STEM-forward identity.</h1>
-      <div className="content-columns academics-intro">
-        <div className="copy-block">
-          <p>At nursery and primary level, STEM should be practical before it becomes technical. Children learn by naming what they see, comparing objects, counting carefully, building simple structures, recording ideas, and explaining their thinking in plain language.</p>
-          <p>The academy’s focus areas are strong academics, STEM and innovation, character and values, sports and creativity, and a safe and secure environment.</p>
-        </div>
-        <img className="framed-image" src={site.primaryStem} alt="Primary pupils using STEM learning materials" />
-      </div>
-      <Pillars />
-      <SchoolLifePreview />
-    </section>
-  );
+  usePageTitle('Learning | ' + site.name, 'Explore the Nursery and Primary learning experience at ' + site.name + '.', site.innovationMural);
+  return <><PageHero eyebrow="Learning at SSTBAC" title="Learning that begins with a question." copy="We make space for children to read, count, imagine, build, explain and practise the small skills that lead to lasting confidence." image={site.innovationMural} alt="Creative science and innovation mural" /><section className="section"><SectionHeading eyebrow="A clear path" title="Growing well at every stage." copy="Each stage is designed to meet children where they are and guide them toward what comes next." /><div className="learning-path">{learningStages.map((stage) => <article key={stage.title}><span>{stage.step}</span><h3>{stage.title}</h3><p>{stage.text}</p></article>)}</div></section><section className="section academics-feature"><div><Eyebrow>Learning beyond the workbook</Eyebrow><h2>Practical thinking is part of the school day.</h2><p>Science, technology, creativity and communication are introduced in child-friendly ways: by observing closely, testing ideas, making things, telling stories and asking good questions.</p><p>It is the kind of learning that helps children understand not just what they are taught, but how to think about the world around them.</p></div><figure><img src={site.classroomImage} alt="Classroom corridor at SSTBAC" /><img src={site.corridorImage} alt="Numbers learning display" /></figure></section><section className="section promise-grid"><article><BookOpen size={25} /><h3>Strong foundations</h3><p>Early literacy, numeracy, communication and steady learning habits.</p></article><article><Microscope size={25} /><h3>Practical discovery</h3><p>Age-appropriate science, technology and curiosity-led exploration.</p></article><article><Palette size={25} /><h3>Creative expression</h3><p>Making, drawing, music and ideas that give every learner a voice.</p></article></section><AdmissionBanner /></>;
 }
 
 function Gallery() {
-  useEffect(() => {
-    setMeta(`Gallery | ${site.name}`, pageDescriptions['/gallery'], '/gallery', site.earlyYears);
-  }, []);
-
-  return (
-    <section className="section page">
-      <p className="eyebrow">Gallery</p>
-      <h1>School life in focus.</h1>
-      <div className="life-grid">
-        {schoolLife.map((item) => (
-          <article className="life-card" key={item.title}>
-            <img src={item.image} alt={item.title} />
-            <div>
-              <h2>{item.title}</h2>
-              <p>{item.text}</p>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
+  usePageTitle('Campus Life | ' + site.name, 'See the welcoming campus and learning spaces at ' + site.name + '.', site.courtyardImage);
+  return <><PageHero eyebrow="Campus life" title="Designed to make learning feel alive." copy="Every corner of the campus reflects the warmth, colour and sense of possibility we want children to feel each day." image={site.courtyardImage} alt="Children playing in the SSTBAC courtyard" /><section className="section"><SectionHeading eyebrow="Around the campus" title="A place to learn, play and imagine." copy="The school environment is part of the learning experience." /><CampusGrid /></section><section className="section gallery-closing"><div><span>✦</span><h2>Come and see it for yourself.</h2></div><p>Pictures can tell part of the story. A campus visit lets you experience the environment, meet the team and ask the questions that matter to your family.</p><Link to="/contact" className="button button-primary">Plan a visit <ArrowRight size={18} /></Link></section></>;
 }
 
 function Admissions() {
-  useEffect(() => {
-    setMeta(`Admissions | ${site.name}`, pageDescriptions['/admissions'], '/admissions', site.flyer);
-  }, []);
-
-  return (
-    <section className="section page admission-page">
-      <div className="admission-copy">
-        <p className="eyebrow">Admissions</p>
-        <h1>{site.admissionSession} admission into {site.programmes}</h1>
-        <p>{site.promise} {site.subPromise.join(' ')} For current placement details, parents should contact the school office directly.</p>
-        <ol className="admission-steps">
-          {admissionSteps.map((step) => <li key={step}>{step}</li>)}
-        </ol>
-        <div className="contact-list">
-          <a href="tel:+2349099256745"><Phone size={18} />+234 (0)909 925 6745</a>
-          <a href="tel:+2347030426997"><Phone size={18} />0703 042 6997</a>
-          <a href={`https://${site.website}`}><Building2 size={18} />{site.website}</a>
-        </div>
-      </div>
-      <img className="flyer-image" src={site.flyer} alt="Shalom Science & Technology Basic Academy 2026/2027 admission information" />
-    </section>
-  );
-}
-
-function Contact() {
-  useEffect(() => {
-    setMeta(`Contact | ${site.name}`, pageDescriptions['/contact'], '/contact', site.campus);
-  }, []);
-
-  return (
-    <section className="section page">
-      <p className="eyebrow">Contact</p>
-      <h1>Reach the school.</h1>
-      <div className="contact-panel">
-        <div><MapPin size={24} /><p>{site.address}</p></div>
-        <div><Phone size={24} /><p>{site.phones.join(' / ')}</p></div>
-        <div><Mail size={24} /><p>{site.email}</p></div>
-      </div>
-    </section>
-  );
-}
-
-function renderContent(content) {
-  return content
-    .split(/\n{2,}/)
-    .filter(Boolean)
-    .map((block, index) => {
-      const image = block.match(/^!\[(.*?)\]\((.*?)\)$/);
-      if (image) {
-        return (
-          <figure className="article-figure" key={`${block}-${index}`}>
-            <img src={image[2]} alt={image[1]} />
-            {image[1] && <figcaption>{image[1]}</figcaption>}
-          </figure>
-        );
-      }
-      return <p key={`${block}-${index}`}>{block}</p>;
-    });
-}
-
-function EmptyNews() {
-  return (
-    <div className="empty-news">
-      <Megaphone size={42} />
-      <h2>News coming soon</h2>
-      <p>Published announcements will appear here after the school office adds them.</p>
-    </div>
-  );
+  usePageTitle('Admissions | ' + site.name, site.admissionSession + ' Nursery and Primary admissions at ' + site.name + '.', site.heroImage);
+  return <><PageHero eyebrow={site.admissionSession + ' admissions'} title="Let’s begin your child’s next chapter." copy={'We are welcoming new learners into ' + site.programmes + '. Start by speaking with the school office so we can guide you clearly through the right next step.'} image={site.heroImage} alt="SSTBAC school campus" /><section className="section"><SectionHeading eyebrow="How to get started" title="A simple path to joining SSTBAC." copy="Our admissions team will help you understand availability, placement and the documents needed for your child." /><ol className="admission-list">{admissionSteps.map((step, index) => <li key={step}><span>{String(index + 1).padStart(2, '0')}</span><p>{step}</p></li>)}</ol></section><section className="section contact-options"><div><Eyebrow>Talk to admissions</Eyebrow><h2>We are ready to answer your questions.</h2><p>Whether you would like to ask about classes, arrange a visit or understand the admissions process, the school office is the best place to start.</p></div><div>{[['Call the school', site.phones[0], 'tel:' + site.phones[0].replace(/\D/g, ''), Phone], ['Send an email', site.admissionsEmail, 'mailto:' + site.admissionsEmail, Mail]].map(([label, detail, href, Icon]) => <a href={href} key={label}><Icon size={23} /><span><small>{label}</small><strong>{detail}</strong></span><ChevronRight size={19} /></a>)}<Link to="/contact"><MapPin size={23} /><span><small>Visit the campus</small><strong>View location details</strong></span><ChevronRight size={19} /></Link></div></section><section className="admission-photo-band"><img src={site.galleryWall} alt="Colourful SSTBAC school murals" /><div><span>Ready when you are</span><h2>Great minds begin with a welcoming first step.</h2></div></section></>;
 }
 
 function NewsPreview() {
-  const [posts, setPosts] = useState([]);
-  useEffect(() => {
-    getPublicNews().then((items) => setPosts(items.slice(0, 3))).catch(() => setPosts([]));
-  }, []);
-
-  return (
-    <section className="section">
-      <div className="section-row">
-        <div>
-          <p className="eyebrow">News</p>
-          <h2>Latest updates</h2>
-        </div>
-        <Link to="/news" className="text-link">View all</Link>
-      </div>
-      {posts.length === 0 ? <EmptyNews /> : <NewsCards posts={posts} />}
-    </section>
-  );
+  return <section className="section news-section"><SectionHeading eyebrow="Latest from SSTBAC" title="News, moments and school notices." copy="Keep up with the things that matter to our school community." action={<Link to="/news" className="text-link">See all updates <ArrowRight size={17} /></Link>} /><NewsCards items={newsItems.slice(0, 2)} /></section>;
 }
 
-function NewsCards({ posts }) {
-  return (
-    <div className="news-grid">
-      {posts.map((post) => (
-        <article className="news-card" key={post.id}>
-          <img src={post.image} alt="" />
-          <div>
-            <span>{post.category}</span>
-            <h3>{post.title}</h3>
-            <p>{post.summary}</p>
-            <Link to={`/news_detail?slug=${encodeURIComponent(post.slug)}`} className="text-link">Read update</Link>
-          </div>
-        </article>
-      ))}
-    </div>
-  );
+function NewsCards({ items }) {
+  return <div className="news-grid">{items.map(([category, title, text, image]) => <article key={title}><img src={image} alt="" /><div><span>{category}</span><h3>{title}</h3><p>{text}</p><Link to="/contact">Talk to us <ArrowRight size={16} /></Link></div></article>)}</div>;
 }
 
-function NewsList() {
-  const [posts, setPosts] = useState(null);
-  const [page, setPage] = useState(1);
-  const pageSize = 6;
-
-  useEffect(() => {
-    setMeta(`News | ${site.name}`, pageDescriptions['/news'], '/news', site.flyer);
-    getPublicNews().then(setPosts).catch(() => setPosts([]));
-  }, []);
-
-  const visible = posts?.slice((page - 1) * pageSize, page * pageSize) || [];
-  const pages = Math.max(1, Math.ceil((posts?.length || 0) / pageSize));
-
-  return (
-    <section className="section page">
-      <p className="eyebrow">News</p>
-      <h1>School announcements</h1>
-      {posts && posts.length === 0 && <EmptyNews />}
-      {visible.length > 0 && <NewsCards posts={visible} />}
-      {pages > 1 && (
-        <div className="pager">
-          {Array.from({ length: pages }, (_, index) => (
-            <button type="button" className={page === index + 1 ? 'active' : ''} onClick={() => setPage(index + 1)} key={index}>
-              {index + 1}
-            </button>
-          ))}
-        </div>
-      )}
-    </section>
-  );
+function News() {
+  usePageTitle('News | ' + site.name, 'News and school notices from ' + site.name + '.', site.learningMural);
+  return <><PageHero eyebrow="News & notices" title="The latest from our school community." copy="Important admissions information, campus moments and school notices will all live here." image={site.learningMural} alt="Colourful SSTBAC school mural" /><section className="section news-section"><SectionHeading eyebrow="Updates" title="What’s happening at SSTBAC." copy="School announcements and campus stories will be shared here." /><NewsCards items={newsItems} /></section><section className="section notice-panel"><Sparkles size={25} /><div><h2>A fresh news space is ready for SSTBAC.</h2><p>This frontend is ready to connect to your preferred publishing system when the time is right.</p></div></section></>;
 }
 
-function NewsDetail() {
-  const [post, setPost] = useState(null);
-  const [missing, setMissing] = useState(false);
-  const params = new URLSearchParams(window.location.search);
-  const slug = params.get('slug') || '';
-  const preview = params.get('preview') === '1';
-
-  useEffect(() => {
-    getNewsBySlug(slug, { preview })
-      .then((item) => {
-        setPost(item);
-        setMissing(!item);
-        if (item) setMeta(`${item.title} | ${site.name}`, item.summary);
-      })
-      .catch(() => setMissing(true));
-  }, [slug, preview]);
-
-  if (missing) {
-    return (
-      <section className="section page">
-        <h1>News post not found</h1>
-        <Link to="/news" className="button primary">Back to news</Link>
-      </section>
-    );
-  }
-
-  if (!post) return <section className="section page"><p>Loading...</p></section>;
-
-  return (
-    <article className="section page article">
-      <p className="eyebrow">{post.category}</p>
-      <h1>{post.title}</h1>
-      <img className="article-cover" src={post.image} alt="" />
-      {renderContent(post.content)}
-    </article>
-  );
-}
-
-function Alert({ alert, onDismiss }) {
-  if (!alert) return null;
-  return (
-    <div className={`alert ${alert.type}`} role="alert">
-      <span>{alert.message}</span>
-      <button type="button" onClick={onDismiss} aria-label="Dismiss message"><X size={16} /></button>
-    </div>
-  );
-}
-
-function AdminLogin({ onAuthed }) {
-  const [form, setForm] = useState({ username: '', password: '' });
-  const [alert, setAlert] = useState(null);
-
-  useEffect(() => {
-    setMeta(`Admin login | ${site.name}`, `Admin sign in for ${site.name}.`);
-  }, []);
-
-  async function submit(event) {
-    event.preventDefault();
-    setAlert(null);
-    try {
-      const admin = await login(form.username, form.password);
-      onAuthed(admin);
-      navigate('/admin_news');
-    } catch (error) {
-      setAlert({ type: 'error', message: error.message });
-    }
-  }
-
-  return (
-    <section className="admin-page">
-      <form className="auth-card" onSubmit={submit}>
-        <img src={site.logo} alt="" />
-        <h1>Admin login</h1>
-        <Alert alert={alert} onDismiss={() => setAlert(null)} />
-        <label>Username<input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} /></label>
-        <label>Password<input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} /></label>
-        <button className="button primary" type="submit">Sign in</button>
-      </form>
-    </section>
-  );
-}
-
-function AdminShell({ children, onLogout }) {
-  return (
-    <section className="admin-shell">
-      <aside>
-        <img src={site.logo} alt="" />
-        <strong>News admin</strong>
-        <Link to="/admin_news">Posts</Link>
-        <Link to="/admin_news_form">New post</Link>
-        <button type="button" onClick={onLogout}>Sign out</button>
-      </aside>
-      <div>{children}</div>
-    </section>
-  );
-}
-
-function ConfirmDialog({ title, body, onCancel, onConfirm }) {
-  return (
-    <div className="dialog-backdrop">
-      <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
-        <h2 id="confirm-title">{title}</h2>
-        <p>{body}</p>
-        <div>
-          <button className="button ghost" type="button" onClick={onCancel}>Cancel</button>
-          <button className="button danger" type="button" onClick={onConfirm}>Delete</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AdminNews({ authed }) {
-  const [posts, setPosts] = useState([]);
-  const [alert, setAlert] = useState(null);
-  const [confirmId, setConfirmId] = useState(null);
-
-  useEffect(() => {
-    if (!authed) return;
-    getAdminNews().then(setPosts).catch((error) => setAlert({ type: 'error', message: error.message }));
-  }, [authed]);
-
-  async function refresh() {
-    setPosts(await getAdminNews());
-  }
-
-  async function setStatus(id, publish) {
-    try {
-      await togglePublish(id, publish);
-      await refresh();
-      setAlert({ type: 'success', message: publish ? 'Published.' : 'Moved to draft.' });
-    } catch (error) {
-      setAlert({ type: 'error', message: error.message });
-    }
-  }
-
-  async function removePost() {
-    try {
-      await deleteNews(confirmId);
-      setConfirmId(null);
-      await refresh();
-      setAlert({ type: 'success', message: 'Deleted.' });
-    } catch (error) {
-      setAlert({ type: 'error', message: error.message });
-    }
-  }
-
-  return (
-    <div className="admin-content">
-      <div className="admin-top">
-        <h1>News posts</h1>
-        <Link to="/admin_news_form" className="button primary">New post</Link>
-      </div>
-      <Alert alert={alert} onDismiss={() => setAlert(null)} />
-      <div className="admin-table">
-        {posts.length === 0 && <p>No news posts yet.</p>}
-        {posts.map((post) => (
-          <article key={post.id}>
-            <span className={`status ${post.status}`}>{post.status}</span>
-            <h2>{post.title}</h2>
-            <p>{post.category} · {new Date(post.updatedAt || post.createdAt).toLocaleDateString()}</p>
-            <div>
-              <Link to={`/admin_news_form?id=${post.id}`} className="button small">Edit</Link>
-              <a className="button small" href={`${hrefFor('/news_detail')}?slug=${post.slug}&preview=1`} target="_blank" rel="noreferrer">Preview</a>
-              <button className="button small" type="button" onClick={() => setStatus(post.id, post.status !== 'published')}>
-                {post.status === 'published' ? 'Unpublish' : 'Publish'}
-              </button>
-              <button className="button small danger" type="button" onClick={() => setConfirmId(post.id)}>Delete</button>
-            </div>
-          </article>
-        ))}
-      </div>
-      {confirmId && <ConfirmDialog title="Delete news post" body="This removes the post from the JSON news store." onCancel={() => setConfirmId(null)} onConfirm={removePost} />}
-    </div>
-  );
-}
-
-const blankPost = {
-  title: '',
-  slug: '',
-  category: 'Admission',
-  summary: '',
-  content: '',
-  image: imageOptions[0].value,
-};
-
-function AdminNewsForm({ authed }) {
-  const [post, setPost] = useState(blankPost);
-  const [alert, setAlert] = useState(null);
-  const params = new URLSearchParams(window.location.search);
-  const id = params.get('id');
-
-  useEffect(() => {
-    if (!authed || !id) return;
-    getAdminNewsById(id).then((item) => setPost(item || blankPost)).catch((error) => setAlert({ type: 'error', message: error.message }));
-  }, [authed, id]);
-
-  const slug = useMemo(() => post.slug || post.title.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-'), [post.slug, post.title]);
-
-  function update(field, value) {
-    setPost((current) => ({ ...current, [field]: value }));
-  }
-
-  async function save(status) {
-    setAlert(null);
-    try {
-      await saveNews({ ...post, slug }, status, id);
-      navigate('/admin_news');
-    } catch (error) {
-      setAlert({ type: 'error', message: error.message });
-    }
-  }
-
-  async function upload(event, inline = false) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    try {
-      const image = await uploadNewsImage(file);
-      if (inline) {
-        update('content', `${post.content}\n\n![${file.name}](${image})`.trim());
-      } else {
-        update('image', image);
-      }
-      setAlert({ type: 'success', message: 'Image uploaded.' });
-    } catch (error) {
-      setAlert({ type: 'error', message: error.message });
-    } finally {
-      event.target.value = '';
-    }
-  }
-
-  return (
-    <div className="editor-grid">
-      <form className="editor-card" onSubmit={(event) => event.preventDefault()}>
-        <h1>{id ? 'Edit news post' : 'New news post'}</h1>
-        <Alert alert={alert} onDismiss={() => setAlert(null)} />
-        <label>Title<input value={post.title} onChange={(event) => update('title', event.target.value)} /></label>
-        <label>Slug<input value={slug} onChange={(event) => update('slug', event.target.value)} /></label>
-        <label>Category<select value={post.category} onChange={(event) => update('category', event.target.value)}>{categories.map((category) => <option key={category}>{category}</option>)}</select></label>
-        <label>Summary<textarea rows="3" value={post.summary} onChange={(event) => update('summary', event.target.value)} /></label>
-        <label>Content<textarea rows="10" value={post.content} onChange={(event) => update('content', event.target.value)} /></label>
-        <label>Featured image<select value={post.image} onChange={(event) => update('image', event.target.value)}>{imageOptions.map((image) => <option key={image.value} value={image.value}>{image.label}</option>)}{post.image?.startsWith('uploads/news/') && <option value={post.image}>Uploaded image</option>}</select></label>
-        <label className="file-button">Upload featured image<input type="file" accept="image/*" onChange={(event) => upload(event)} /></label>
-        <label className="file-button">Insert image in content<input type="file" accept="image/*" onChange={(event) => upload(event, true)} /></label>
-        <div className="editor-actions">
-          <button className="button ghost" type="button" onClick={() => navigate('/admin_news')}>Cancel</button>
-          <button className="button" type="button" onClick={() => save('draft')}>Save draft</button>
-          <button className="button primary" type="button" onClick={() => save('published')}>Publish</button>
-        </div>
-      </form>
-      <article className="editor-preview">
-        <span>{post.category}</span>
-        <h2>{post.title || 'News title'}</h2>
-        <p>{post.summary || 'Summary preview appears here.'}</p>
-        {post.image && <img src={post.image} alt="" />}
-        <div>{renderContent(post.content || 'Full content preview appears here.')}</div>
-      </article>
-    </div>
-  );
+function Contact() {
+  usePageTitle('Contact | ' + site.name, 'Contact ' + site.name + ' in Enugu.', site.campusImage);
+  const mapUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(site.address);
+  return <><PageHero eyebrow="Contact SSTBAC" title="Come in, call us or send a note." copy="We would love to help you learn more about SSTBAC, admissions and visiting the school." image={site.campusImage} alt="SSTBAC school building" /><section className="section contact-page"><div className="contact-details"><Eyebrow>Get in touch</Eyebrow><h2>We are here to help.</h2><a href={'tel:' + site.phones[0].replace(/\D/g, '')}><Phone size={23} /><span><small>Call us</small><strong>{site.phones[0]}</strong></span></a><a href={'tel:' + site.phones[1].replace(/\D/g, '')}><Phone size={23} /><span><small>Alternative line</small><strong>{site.phones[1]}</strong></span></a><a href={'mailto:' + site.email}><Mail size={23} /><span><small>Email us</small><strong>{site.email}</strong></span></a></div><div className="visit-card"><MapPin size={29} /><span>Visit the school</span><h2>{site.address}</h2><p>Contact the school office before your visit so the team can welcome and guide you.</p><a href={mapUrl} target="_blank" rel="noreferrer">Open directions <ArrowRight size={17} /></a></div></section><AdmissionBanner /></>;
 }
 
 function App() {
   const [path, setPath] = useState(getRouteState().path);
-  const [admin, setAdmin] = useState(null);
-  const adminRoute = path.startsWith('/admin');
-
   useEffect(() => {
-    const sync = () => {
-      const routeState = getRouteState();
-      routePrefix = routeState.prefix;
-      setPath(routeState.path);
-    };
-    window.addEventListener('popstate', sync);
-    return () => window.removeEventListener('popstate', sync);
+    const handleRoute = () => { const next = getRouteState(); routePrefix = next.prefix; setPath(next.path); };
+    window.addEventListener('popstate', handleRoute);
+    return () => window.removeEventListener('popstate', handleRoute);
   }, []);
-
-  useEffect(() => {
-    if (!adminRoute) return;
-    getCurrentAdmin().then(setAdmin).catch(() => setAdmin(null));
-  }, [adminRoute, path]);
-
-  async function doLogout() {
-    await logout();
-    setAdmin(null);
-    navigate('/admin_login');
-  }
-
-  if (path === '/admin_login') return <AdminLogin onAuthed={setAdmin} />;
-
-  if (adminRoute) {
-    if (!admin) return <AdminLogin onAuthed={setAdmin} />;
-    return (
-      <AdminShell onLogout={doLogout}>
-        {path === '/admin_news_form' ? <AdminNewsForm authed={admin} /> : <AdminNews authed={admin} />}
-      </AdminShell>
-    );
-  }
-
-  const routes = {
-    '/': <Home />,
-    '/about': <About />,
-    '/academics': <Academics />,
-    '/gallery': <Gallery />,
-    '/admissions': <Admissions />,
-    '/news': <NewsList />,
-    '/news_detail': <NewsDetail />,
-    '/contact': <Contact />,
-  };
-
-  return <Shell path={path}>{routes[path] || <Home />}</Shell>;
+  const pages = { '/': <Home />, '/about': <About />, '/academics': <Academics />, '/gallery': <Gallery />, '/admissions': <Admissions />, '/news': <News />, '/contact': <Contact /> };
+  return <Shell path={path}>{pages[path] || <Home />}</Shell>;
 }
 
 export default App;
