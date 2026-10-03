@@ -142,6 +142,12 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 
+# Astro generated types
+.astro/
+
+# Turbo Repo
+.turbo
+
 # Project runtime
 data/sessions/*
 !data/sessions/.gitkeep
