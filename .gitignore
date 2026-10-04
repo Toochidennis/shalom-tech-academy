@@ -153,6 +153,16 @@ data/sessions/*
 !data/sessions/.gitkeep
 uploads/news/*
 !uploads/news/.gitkeep
+/storage/*
+!/storage/.htaccess
+!/storage/.gitkeep
+test-results/
+playwright-report/
+public/uploads/news/*
+!public/uploads/news/.htaccess
+public/uploads/campus/*
+!public/uploads/campus/.htaccess
+.dev-php-tmp/
 
 # Local source/scrape artifacts
 scraped/

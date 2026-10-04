@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
+  ArrowLeft,
   BookOpen,
   CalendarDays,
   Check,
+  ChevronLeft,
   ChevronRight,
   Heart,
   Mail,
@@ -18,17 +20,66 @@ import {
   X,
 } from 'lucide-react';
 import { admissionSteps, campusStories, learningStages, navItems, site, trustPoints, values } from './data/siteContent';
+import { apiRequest, assetUrl } from './data/api';
+import AdminApp from './admin/Admin.jsx';
 
 const routes = ['/', '/about', '/academics', '/gallery', '/admissions', '/news', '/contact'];
 
-const newsItems = [
-  ['Admissions', site.admissionSession + ' admission is open', 'Speak with the school office about current class placement and the admissions process.', site.heroImage],
-  ['Campus life', 'A school environment made for young learners', 'Our colourful learning spaces help children feel welcome, curious and ready to grow.', site.learningMural],
-  ['Learning', 'Small beginnings. Big possibilities.', 'A strong early foundation is built through daily routines, thoughtful teaching and joyful discovery.', site.innovationMural],
-];
+const defaultAdmissions = {
+  session: site.admissionSession,
+  open: true,
+  programmes: site.programmes,
+  banner_message: 'Admissions are open. Speak with our school office to get started.',
+};
+const AdmissionsContext = createContext(defaultAdmissions);
+
+function useAdmissions() {
+  return useContext(AdmissionsContext);
+}
+
+function usePublicNews() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    apiRequest('news').then((result) => {
+      if (active) setItems(result.items || []);
+    }).catch((err) => {
+      if (active) setError(err.message);
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  }, []);
+  return { items, loading, error };
+}
+
+function useCampusStories() {
+  const [stories, setStories] = useState(() => campusStories.map((story, index) => ({
+    ...story,
+    id: 'local-' + index,
+    eyebrow: 'Campus life',
+    description: story.text,
+    alt_text: story.title,
+    sort_order: index,
+  })));
+  useEffect(() => {
+    let active = true;
+    apiRequest('campus-life').then((result) => {
+      if (active && Array.isArray(result.items)) setStories(result.items);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+  return stories;
+}
 
 function getRouteState() {
   const pathname = window.location.pathname.replace(/\/$/, '') || '/';
+  const adminRoute = pathname.match(/^(.*?)(\/admin(?:\/.*)?)$/);
+  if (adminRoute) return { path: adminRoute[2], prefix: adminRoute[1] };
+  const newsDetailRoute = pathname.match(/^(.*)\/news\/(?:([^/]+)-)?([a-f0-9]{24})$/i);
+  if (newsDetailRoute) return { path: '/news-detail', prefix: newsDetailRoute[1], newsId: newsDetailRoute[3] };
   const path = routes.find((route) => route !== '/' && (pathname === route || pathname.endsWith(route)));
   return path ? { path, prefix: pathname.slice(0, -path.length) } : { path: '/', prefix: pathname === '/' ? '' : pathname };
 }
@@ -45,18 +96,33 @@ function navigate(path) {
   window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
 }
 
-function Link({ to, className = '', children, onClick }) {
-  return <a href={hrefFor(to)} className={className} onClick={(event) => { event.preventDefault(); onClick?.(); navigate(to); }}>{children}</a>;
+function newsPathFor(item) {
+  const slug = String(item.title || 'school-update')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || 'school-update';
+  return '/news/' + slug + '-' + item.id;
+}
+
+function Link({ to, className = '', children, onClick, ...attributes }) {
+  return <a href={hrefFor(to)} className={className} {...attributes} onClick={(event) => { event.preventDefault(); onClick?.(); navigate(to); }}>{children}</a>;
 }
 
 function usePageTitle(title, description, image = site.ogImage) {
   useEffect(() => {
     document.title = title;
+    const canonicalUrl = window.location.origin + window.location.pathname;
+    const socialImage = /^https?:\/\//i.test(String(image))
+      ? image
+      : 'https://' + site.website + '/' + String(image).replace(/^\/+/, '');
     const entries = [
       ['name', 'description', description],
       ['property', 'og:title', title],
       ['property', 'og:description', description],
-      ['property', 'og:image', 'https://' + site.website + '/' + image],
+      ['property', 'og:image', socialImage],
+      ['property', 'og:url', canonicalUrl],
     ];
     entries.forEach(([attribute, name, value]) => {
       let tag = document.querySelector('meta[' + attribute + '="' + name + '"]');
@@ -67,6 +133,13 @@ function usePageTitle(title, description, image = site.ogImage) {
       }
       tag.setAttribute('content', value);
     });
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.rel = 'canonical';
+      document.head.appendChild(canonical);
+    }
+    canonical.href = canonicalUrl;
   }, [title, description, image]);
 }
 
@@ -77,6 +150,7 @@ function Eyebrow({ children }) {
 const MARQUEE_SPEED = 72;
 
 function AnnouncementBar() {
+  const admissions = useAdmissions();
   const barRef = useRef(null);
   const textRef = useRef(null);
   const [duration, setDuration] = useState(22);
@@ -96,10 +170,11 @@ function AnnouncementBar() {
     return () => window.removeEventListener('resize', measure);
   }, []);
 
+  if (!admissions.open) return null;
   return (
     <div className="announcement-bar" ref={barRef}>
       <p className="marquee-item" ref={textRef} style={{ animationDuration: duration + 's' }}>
-        <Sparkles size={14} /> {site.admissionSession} admissions are open for Nursery &amp; Primary.
+        <Sparkles size={14} /> {admissions.banner_message}
       </p>
     </div>
   );
@@ -141,7 +216,7 @@ function Header({ path }) {
       <AnnouncementBar />
       <header ref={headerRef} className={pinned ? 'site-header is-pinned' : 'site-header'}>
         <Link to="/" className="brand" onClick={() => setOpen(false)}>
-          <img src={site.logo} alt="SSTBAC crest" />
+          <img src={assetUrl(site.logo)} alt="SSTBAC crest" />
           <span><strong>{site.shortName}</strong><small>Science &amp; Technology Basic Academy</small></span>
         </Link>
         <button className="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -162,7 +237,7 @@ function Footer() {
   return (
     <footer className="site-footer">
       <div className="footer-top">
-        <div className="footer-brand"><img src={site.logo} alt="" /><div><strong>{site.name}</strong><span>{site.motto}</span></div></div>
+        <div className="footer-brand"><img src={assetUrl(site.logo)} alt="" /><div><strong>{site.name}</strong><span>{site.motto}</span></div></div>
         <p>A warm, purposeful beginning for every child who walks through our gates.</p>
         <Link to="/admissions" className="button button-light">Start an enquiry <ArrowRight size={17} /></Link>
       </div>
@@ -189,25 +264,66 @@ function PageHero({ eyebrow, title, copy, image, alt }) {
 }
 
 function AdmissionBanner() {
-  return <section className="admissions-banner"><div><Eyebrow>Join SSTBAC</Eyebrow><h2>Your child’s bright beginning can start here.</h2></div><div><p>Speak with the school office about Nursery and Primary admissions for the {site.admissionSession} session.</p><Link to="/admissions" className="button button-primary">Start an enquiry <ArrowRight size={18} /></Link></div></section>;
+  const admissions = useAdmissions();
+  return <section className="admissions-banner"><div><Eyebrow>{admissions.open ? 'Join SSTBAC' : 'Admissions update'}</Eyebrow><h2>Your child’s bright beginning can start here.</h2></div><div><p>{admissions.banner_message} {admissions.session} · {admissions.programmes}.</p><Link to="/admissions" className="button button-primary">{admissions.open ? 'Start an enquiry' : 'Ask about admissions'} <ArrowRight size={18} /></Link></div></section>;
 }
 
 function CampusGrid({ limit }) {
-  const stories = limit ? campusStories.slice(0, limit) : campusStories;
-  return <div className={limit ? 'campus-grid campus-grid-preview' : 'campus-grid'}>{stories.map((story) => <article className={'campus-card campus-card-' + story.size} key={story.title}><img src={story.image} alt={story.title} /><div><span>Campus life</span><h3>{story.title}</h3><p>{story.text}</p></div></article>)}</div>;
+  const allStories = useCampusStories();
+  const stories = limit ? allStories.slice(0, limit) : allStories;
+  const [selectedIndex, setSelectedIndex] = useState(null);
+  const dialogRef = useRef(null);
+  const selected = selectedIndex === null ? null : stories[selectedIndex];
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (selected && !dialog.open) dialog.showModal();
+    if (!selected && dialog.open) dialog.close();
+  }, [selected]);
+
+  function moveSelection(direction) {
+    setSelectedIndex((current) => current === null ? null : (current + direction + stories.length) % stories.length);
+  }
+
+  return <>
+    <div className={limit ? 'campus-grid campus-grid-preview' : 'campus-grid'}>
+      {stories.map((story) => <article className={'campus-card campus-card-' + story.size} key={story.id}>
+        <button className="campus-card-button" type="button" aria-label={'View full-size image: ' + story.title} onClick={() => setSelectedIndex(stories.indexOf(story))}>
+          <img src={assetUrl(story.image)} alt={story.alt_text || story.title} />
+          <div><span>{story.eyebrow || 'Campus life'}</span><h3>{story.title}</h3><p>{story.description}</p></div>
+        </button>
+      </article>)}
+    </div>
+    <dialog className="campus-lightbox" ref={dialogRef} aria-label="Campus photo viewer" onClose={() => setSelectedIndex(null)} onClick={(event) => { if (event.target === dialogRef.current) dialogRef.current.close(); }} onKeyDown={(event) => {
+      if (event.key === 'ArrowLeft') { event.preventDefault(); moveSelection(-1); }
+      if (event.key === 'ArrowRight') { event.preventDefault(); moveSelection(1); }
+    }}>
+      {selected && <>
+        <button className="campus-lightbox-close" type="button" aria-label="Close image viewer" onClick={() => dialogRef.current?.close()}><X size={22} /></button>
+        {stories.length > 1 && <>
+          <button className="campus-lightbox-nav previous" type="button" aria-label="Previous campus image" onClick={() => moveSelection(-1)}><ChevronLeft size={26} /></button>
+          <button className="campus-lightbox-nav next" type="button" aria-label="Next campus image" onClick={() => moveSelection(1)}><ChevronRight size={26} /></button>
+        </>}
+        <img className="campus-lightbox-image" src={assetUrl(selected.image)} alt={selected.alt_text || selected.title} />
+        <div className="campus-lightbox-caption"><span>{selected.eyebrow || 'Campus life'}</span><h2>{selected.title}</h2><p>{selected.description}</p><small>{selectedIndex + 1} of {stories.length}</small></div>
+      </>}
+    </dialog>
+  </>;
 }
 
 function Home() {
-  usePageTitle(site.name + ' | Nursery & Primary School in Enugu', site.admissionSession + ' admissions for Nursery and Primary at ' + site.name + '.');
+  const admissions = useAdmissions();
+  usePageTitle(site.name + ' | Nursery & Primary School in Enugu', admissions.session + ' admissions for Nursery and Primary at ' + site.name + '.');
   return (
     <>
       <section className="hero">
         <div className="hero-copy">
-          <Eyebrow>{site.admissionSession} admissions open</Eyebrow>
+          <Eyebrow>{admissions.session} admissions {admissions.open ? 'open' : 'currently closed'}</Eyebrow>
           <h1>A strong start for <em>bright</em> young minds.</h1>
           <p>{site.name} is a warm, creative learning home where children build confidence, character and a lifelong love of discovery.</p>
           <div className="hero-actions"><Link to="/admissions" className="button button-primary">Begin an enquiry <ArrowRight size={18} /></Link><Link to="/gallery" className="button button-quiet">Explore our campus <ChevronRight size={18} /></Link></div>
-          <div className="hero-note"><CalendarDays size={20} /><span><strong>{site.programmes}</strong><small>Now welcoming learners for the new session</small></span></div>
+          <div className="hero-note"><CalendarDays size={20} /><span><strong>{admissions.programmes}</strong><small>{admissions.open ? 'Now welcoming learners for the new session' : 'Contact us for future session information'}</small></span></div>
         </div>
         <div className="hero-visual"><div className="hero-arch"><img src={site.heroImage} alt="SSTBAC campus exterior" /></div><div className="hero-crest"><img src={site.logo} alt="" /></div><div className="hero-tag"><span>Our promise</span><strong>{site.motto}</strong></div></div>
       </section>
@@ -245,21 +361,121 @@ function Gallery() {
 }
 
 function Admissions() {
-  usePageTitle('Admissions | ' + site.name, site.admissionSession + ' Nursery and Primary admissions at ' + site.name + '.', site.heroImage);
-  return <><PageHero eyebrow={site.admissionSession + ' admissions'} title="Let’s begin your child’s next chapter." copy={'We are welcoming new learners into ' + site.programmes + '. Start by speaking with the school office so we can guide you clearly through the right next step.'} image={site.heroImage} alt="SSTBAC school campus" /><section className="section"><SectionHeading eyebrow="How to get started" title="A simple path to joining SSTBAC." copy="Our admissions team will help you understand availability, placement and the documents needed for your child." /><ol className="admission-list">{admissionSteps.map((step, index) => <li key={step}><span>{String(index + 1).padStart(2, '0')}</span><p>{step}</p></li>)}</ol></section><section className="section contact-options"><div><Eyebrow>Talk to admissions</Eyebrow><h2>We are ready to answer your questions.</h2><p>Whether you would like to ask about classes, arrange a visit or understand the admissions process, the school office is the best place to start.</p></div><div>{[['Call the school', site.phones[0], 'tel:' + site.phones[0].replace(/\D/g, ''), Phone], ['Send an email', site.admissionsEmail, 'mailto:' + site.admissionsEmail, Mail]].map(([label, detail, href, Icon]) => <a href={href} key={label}><Icon size={23} /><span><small>{label}</small><strong>{detail}</strong></span><ChevronRight size={19} /></a>)}<Link to="/contact"><MapPin size={23} /><span><small>Visit the campus</small><strong>View location details</strong></span><ChevronRight size={19} /></Link></div></section><section className="admission-photo-band"><img src={site.galleryWall} alt="Colourful SSTBAC school murals" /><div><span>Ready when you are</span><h2>Great minds begin with a welcoming first step.</h2></div></section></>;
+  const admissions = useAdmissions();
+  usePageTitle('Admissions | ' + site.name, admissions.session + ' Nursery and Primary admissions at ' + site.name + '.', site.heroImage);
+  const intro = admissions.open
+    ? 'We are welcoming new learners into ' + admissions.programmes + '. Start by speaking with the school office so we can guide you clearly through the right next step.'
+    : 'Admissions for the ' + admissions.session + ' session are currently closed. Contact the school office to ask about future availability and next steps.';
+  return <><PageHero eyebrow={admissions.session + ' admissions'} title="Let’s begin your child’s next chapter." copy={intro} image={site.heroImage} alt="SSTBAC school campus" /><section className="section"><SectionHeading eyebrow="How to get started" title="A simple path to joining SSTBAC." copy="Our admissions team will help you understand availability, placement and the documents needed for your child." /><ol className="admission-list">{admissionSteps.map((step, index) => <li key={step}><span>{String(index + 1).padStart(2, '0')}</span><p>{step}</p></li>)}</ol></section><section className="section contact-options"><div><Eyebrow>Talk to admissions</Eyebrow><h2>We are ready to answer your questions.</h2><p>Whether you would like to ask about classes, arrange a visit or understand the admissions process, the school office is the best place to start.</p></div><div>{[['Call the school', site.phones[0], 'tel:' + site.phones[0].replace(/\D/g, ''), Phone], ['Send an email', site.admissionsEmail, 'mailto:' + site.admissionsEmail, Mail]].map(([label, detail, href, Icon]) => <a href={href} key={label}><Icon size={23} /><span><small>{label}</small><strong>{detail}</strong></span><ChevronRight size={19} /></a>)}<Link to="/contact"><MapPin size={23} /><span><small>Visit the campus</small><strong>View location details</strong></span><ChevronRight size={19} /></Link></div></section><section className="admission-photo-band"><img src={site.galleryWall} alt="Colourful SSTBAC school murals" /><div><span>Ready when you are</span><h2>Great minds begin with a welcoming first step.</h2></div></section></>;
 }
 
 function NewsPreview() {
-  return <section className="section news-section"><SectionHeading eyebrow="Latest from SSTBAC" title="News, moments and school notices." copy="Keep up with the things that matter to our school community." action={<Link to="/news" className="text-link">See all updates <ArrowRight size={17} /></Link>} /><NewsCards items={newsItems.slice(0, 2)} /></section>;
+  const { items, loading, error } = usePublicNews();
+  return <section className="section news-section"><SectionHeading eyebrow="Latest from SSTBAC" title="News, moments and school notices." copy="Keep up with the things that matter to our school community." action={<Link to="/news" className="text-link">See all updates <ArrowRight size={17} /></Link>} />{loading ? <p className="news-feed-message">Loading school updates…</p> : error ? <p className="news-feed-message">School updates are temporarily unavailable.</p> : <NewsCards items={items.slice(0, 2)} />}</section>;
 }
 
 function NewsCards({ items }) {
-  return <div className="news-grid">{items.map(([category, title, text, image]) => <article key={title}><img src={image} alt="" /><div><span>{category}</span><h3>{title}</h3><p>{text}</p><Link to="/contact">Talk to us <ArrowRight size={16} /></Link></div></article>)}</div>;
+  if (!items.length) return <div className="news-feed-empty"><Sparkles size={20} /><p>There are no published updates just yet. Please check back soon.</p></div>;
+  return (
+    <div className={items.length === 1 ? 'news-grid news-grid-single' : 'news-grid'}>
+      {items.map((item) => {
+        const date = item.published_at ? new Date(item.published_at) : null;
+        const articlePath = newsPathFor(item);
+        return (
+          <article key={item.id}>
+            <Link to={articlePath} className="news-card-image" aria-label={'Read ' + item.title}>
+              <img src={item.image ? assetUrl(item.image) : site.learningMural} alt="" />
+            </Link>
+            <div>
+              <span className="news-category">{item.category}</span>
+              <h3><Link to={articlePath}>{item.title}</Link></h3>
+              <p className="news-summary">{item.summary}</p>
+              <Link to={articlePath} className="news-read-link">Read the full story <ArrowRight size={15} /></Link>
+              {date && !Number.isNaN(date.getTime()) && <small className="news-date">{date.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</small>}
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
 }
 
 function News() {
+  const { items, loading, error } = usePublicNews();
   usePageTitle('News | ' + site.name, 'News and school notices from ' + site.name + '.', site.learningMural);
-  return <><PageHero eyebrow="News & notices" title="The latest from our school community." copy="Important admissions information, campus moments and school notices will all live here." image={site.learningMural} alt="Colourful SSTBAC school mural" /><section className="section news-section"><SectionHeading eyebrow="Updates" title="What’s happening at SSTBAC." copy="School announcements and campus stories will be shared here." /><NewsCards items={newsItems} /></section><section className="section notice-panel"><Sparkles size={25} /><div><h2>A fresh news space is ready for SSTBAC.</h2><p>This frontend is ready to connect to your preferred publishing system when the time is right.</p></div></section></>;
+  return <><PageHero eyebrow="News & notices" title="The latest from our school community." copy="Important admissions information, campus moments and school notices will all live here." image={site.learningMural} alt="Colourful SSTBAC school mural" /><section className="section news-section"><SectionHeading eyebrow="Updates" title="What’s happening at SSTBAC." copy="School announcements and campus stories will be shared here." />{loading ? <p className="news-feed-message">Loading school updates…</p> : error ? <p className="news-feed-message">Updates are temporarily unavailable. Please try again later.</p> : <NewsCards items={items} />}</section></>;
+}
+
+function NewsDetail({ id }) {
+  const [item, setItem] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    setItem(null);
+    setError('');
+    setLoading(true);
+    if (!id) {
+      setError('This news update could not be found.');
+      setLoading(false);
+      return () => { active = false; };
+    }
+    apiRequest('news/' + id)
+      .then((result) => { if (active) setItem(result.item || null); })
+      .catch((err) => { if (active) setError(err.message); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [id]);
+
+  const title = item ? item.title + ' | ' + site.name : 'News update | ' + site.name;
+  const description = item?.summary || 'Read school news and notices from ' + site.name + '.';
+  usePageTitle(title, description, item?.image ? assetUrl(item.image) : site.learningMural);
+
+  const bodyParagraphs = String(item?.body || '')
+    .split(/\r?\n\s*\r?\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+  const publishedDate = item?.published_at ? new Date(item.published_at) : null;
+
+  return (
+    <main className="section news-story-page">
+      <div className="news-story-container">
+        <Link to="/news" className="news-back-link"><ArrowLeft size={16} />Back to all news</Link>
+        {loading ? (
+          <p className="news-feed-message" role="status">Loading this update…</p>
+        ) : error || !item ? (
+          <section className="news-story-empty" role="status">
+            <span className="eyebrow">News &amp; notices</span>
+            <h1>We couldn’t find that update.</h1>
+            <p>It may have been unpublished or moved. You can browse the latest school updates instead.</p>
+            <Link to="/news" className="news-read-link">Browse all updates <ArrowRight size={15} /></Link>
+          </section>
+        ) : (
+          <article className="news-story">
+            <header className="news-story-header">
+              <span className="news-story-category">{item.category}</span>
+              {publishedDate && !Number.isNaN(publishedDate.getTime()) && (
+                <time dateTime={publishedDate.toISOString()}>{publishedDate.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</time>
+              )}
+              <h1>{item.title}</h1>
+              {item.summary && <p className="news-story-lead">{item.summary}</p>}
+            </header>
+            {item.image && <img className="news-story-image" src={assetUrl(item.image)} alt={item.title} />}
+            {bodyParagraphs.length > 0 && (
+              <div className="news-story-body">
+                {bodyParagraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+              </div>
+            )}
+            <footer className="news-story-footer">
+              <Link to="/news" className="news-back-link"><ArrowLeft size={16} />More school updates</Link>
+              <span>Shalom Science &amp; Technology Basic Academy</span>
+            </footer>
+          </article>
+        )}
+      </div>
+    </main>
+  );
 }
 
 function Contact() {
@@ -269,14 +485,31 @@ function Contact() {
 }
 
 function App() {
-  const [path, setPath] = useState(getRouteState().path);
+  const [initialRoute] = useState(getRouteState);
+  const [path, setPath] = useState(initialRoute.path);
+  const [newsId, setNewsId] = useState(initialRoute.newsId || null);
+  const [admissions, setAdmissions] = useState(defaultAdmissions);
   useEffect(() => {
-    const handleRoute = () => { const next = getRouteState(); routePrefix = next.prefix; setPath(next.path); };
+    const handleRoute = () => {
+      const next = getRouteState();
+      routePrefix = next.prefix;
+      setPath(next.path);
+      setNewsId(next.newsId || null);
+    };
     window.addEventListener('popstate', handleRoute);
     return () => window.removeEventListener('popstate', handleRoute);
   }, []);
+  useEffect(() => {
+    let active = true;
+    apiRequest('admissions').then((result) => { if (active) setAdmissions(result); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+  if (path.startsWith('/admin')) {
+    return <AdminApp path={path} navigate={navigate} hrefFor={hrefFor} />;
+  }
   const pages = { '/': <Home />, '/about': <About />, '/academics': <Academics />, '/gallery': <Gallery />, '/admissions': <Admissions />, '/news': <News />, '/contact': <Contact /> };
-  return <Shell path={path}>{pages[path] || <Home />}</Shell>;
+  const page = path === '/news-detail' ? <NewsDetail id={newsId} /> : pages[path] || <Home />;
+  return <AdmissionsContext.Provider value={admissions}><Shell path={path === '/news-detail' ? '/news' : path}>{page}</Shell></AdmissionsContext.Provider>;
 }
 
 export default App;

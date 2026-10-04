@@ -1,0 +1,10 @@
+Options -Indexes
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+RewriteRule ^ index.php [QSA,L]
+
+<FilesMatch "^(bootstrap|setup-admin|dev-router)\.php$">
+  Require all denied
+</FilesMatch>

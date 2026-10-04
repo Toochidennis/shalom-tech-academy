@@ -4,6 +4,9 @@ Options -Indexes
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
+  # Let the PHP API's own rewrite rules handle endpoint URLs.
+  RewriteRule ^api(?:/|$) - [L]
+
   # React SPA fallback. Real files and folders are served directly.
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
